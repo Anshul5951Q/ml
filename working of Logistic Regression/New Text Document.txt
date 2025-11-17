@@ -1,0 +1,54 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
+
+# ---------------------------------------------------------
+# READ IRIS DATA FROM CSV (instead of load_iris)
+# ---------------------------------------------------------
+df = pd.read_csv("iris.csv")   # <--- replace with your file name
+
+# Petal length (same as iris.data[:, 2])
+X = df.iloc[:, 2].values.reshape(-1, 1)
+
+# Convert species → binary: Setosa = 1, Others = 0
+y = (df.iloc[:, -1] == "setosa").astype(int)
+# ---------------------------------------------------------
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42
+)
+
+# Train logistic regression on full dataset (same as your original code)
+clf = LogisticRegression()
+clf.fit(X, y)
+
+# Predict on test set
+y_pred = clf.predict(X_test)
+
+# --- Confusion Matrix ---
+cm = confusion_matrix(y_test, y_pred)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm,
+                              display_labels=["Not Setosa", "Setosa"])
+disp.plot(cmap="Blues")
+plt.title("Confusion Matrix")
+plt.show()
+
+# --- Classification Report ---
+print("Classification Report:\n", classification_report(y_test, y_pred))
+
+# Create smooth X range for sigmoid curve
+X_curve = np.linspace(X.min(), X.max(), 300).reshape(-1, 1)
+y_prob = clf.predict_proba(X_curve)[:, 1]
+
+# Plot sigmoid curve
+plt.scatter(X, y, c=y, cmap=plt.cm.coolwarm, edgecolor="k", s=50, label="Data")
+plt.plot(X_curve, y_prob, color="black", linewidth=2, label="Sigmoid Curve")
+plt.xlabel("Petal length (cm)")
+plt.ylabel("Probability of Setosa")
+plt.title("Logistic Regression with Sigmoid Curve (CSV Iris)")
+plt.legend()
+plt.show()

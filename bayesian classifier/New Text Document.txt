@@ -1,0 +1,60 @@
+# Import necessary libraries
+import joblib
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import classification_report, accuracy_score
+
+# ----------------------------------------------------------
+# STEP 0: READ DATA FROM CSV INSTEAD OF HARD-CODED DATA
+# ----------------------------------------------------------
+# Your CSV MUST contain two columns: "text" and "label"
+# Example:
+# text,label
+# "Free money now",spam
+# "Hello bro",ham
+
+df = pd.read_csv("text_dataset.csv")   # <-- Replace with your filename
+
+X = df["text"]     # Features
+y = df["label"]    # Target labels (spam / ham)
+# ----------------------------------------------------------
+
+# Step 1: Data Preprocessing (train-test split)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# Step 2: Feature Extraction using TF-IDF
+vectorizer = TfidfVectorizer(stop_words='english')
+
+X_train_tfidf = vectorizer.fit_transform(X_train)
+X_test_tfidf = vectorizer.transform(X_test)
+
+# Step 3: Train Naive Bayes Classifier
+model = MultinomialNB()
+model.fit(X_train_tfidf, y_train)
+
+# Step 4: Model Evaluation
+y_pred = model.predict(X_test_tfidf)
+
+print("Classification Report:\n", classification_report(y_test, y_pred))
+print("Accuracy Score:", accuracy_score(y_test, y_pred))
+
+# Step 5: Saving model + vectorizer
+joblib.dump(model, 'naive_bayes_model.pkl')
+joblib.dump(vectorizer, 'tfidf_vectorizer.pkl')
+print("Model and vectorizer saved successfully!")
+
+# Step 6: Load and use model on new text
+loaded_model = joblib.load('naive_bayes_model.pkl')
+loaded_vectorizer = joblib.load('tfidf_vectorizer.pkl')
+
+new_text = ["Get your free gift now!", "Let's catch up soon"]
+new_text_tfidf = loaded_vectorizer.transform(new_text)
+
+predictions = loaded_model.predict(new_text_tfidf)
+
+for text, pred in zip(new_text, predictions):
+    print(f"Text: {text}\nPredicted Label: {pred}\n")
