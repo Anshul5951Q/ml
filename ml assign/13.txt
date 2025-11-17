@@ -1,0 +1,59 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# -----------------------------
+# 1. Load Dataset
+# -----------------------------
+df = pd.read_csv("fraud_detection.csv")   # change filename if needed
+print(df.head())
+
+# -----------------------------
+# 2. Encode Categorical Columns
+# -----------------------------
+le = LabelEncoder()
+
+for col in df.columns:
+    if df[col].dtype == 'object':
+        df[col] = le.fit_transform(df[col])
+
+# -----------------------------
+# 3. Features & Target
+# -----------------------------
+X = df.drop("Risk", axis=1)   # Risk = High/Low (target)
+y = df["Risk"]
+
+# -----------------------------
+# 4. Train–Test Split
+# -----------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# -----------------------------
+# 5. Scaling
+# -----------------------------
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# -----------------------------
+# 6. SVM Classifier
+# -----------------------------
+svm = SVC(kernel='rbf', random_state=42)
+svm.fit(X_train_scaled, y_train)
+
+# -----------------------------
+# 7. Predictions
+# -----------------------------
+y_pred = svm.predict(X_test_scaled)
+
+# -----------------------------
+# 8. Evaluation
+# -----------------------------
+print("----- SVM CLASSIFIER RESULTS -----")
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+print(classification_report(y_test, y_pred))

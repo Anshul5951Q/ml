@@ -1,0 +1,69 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from scipy.sparse import hstack
+
+# ----------------------------------------------------
+# 1. Load Dataset
+# ----------------------------------------------------
+df = pd.read_csv("yelp.csv")   # your Yelp dataset
+print(df.head())
+
+# ----------------------------------------------------
+# 2. Basic Preprocessing
+# ----------------------------------------------------
+df['text'] = df['text'].fillna("")
+
+# Assuming sentiment column: 1 = positive, 0 = negative
+X_text = df['text']
+y = df['sentiment']     # rename if needed
+
+# Numeric feedback features
+numeric_features = df[['useful', 'cool', 'funny']]
+
+# ----------------------------------------------------
+# 3. TF-IDF Vectorization of Review Text
+# ----------------------------------------------------
+tfidf = TfidfVectorizer(
+    stop_words='english',
+    max_features=5000
+)
+X_text_tfidf = tfidf.fit_transform(X_text)
+
+# ----------------------------------------------------
+# 4. Scale numeric features
+# ----------------------------------------------------
+scaler = StandardScaler()
+X_num_scaled = scaler.fit_transform(numeric_features)
+
+# Combine text + numeric features
+X_final = hstack([X_text_tfidf, X_num_scaled])
+
+# ----------------------------------------------------
+# 5. Train-Test Split
+# ----------------------------------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X_final, y, test_size=0.2, random_state=42
+)
+
+# ----------------------------------------------------
+# 6. SVM Classifier
+# ----------------------------------------------------
+svm = SVC(kernel='rbf', random_state=42)
+svm.fit(X_train, y_train)
+
+# ----------------------------------------------------
+# 7. Predictions
+# ----------------------------------------------------
+y_pred = svm.predict(X_test)
+
+# ----------------------------------------------------
+# 8. Evaluation
+# ----------------------------------------------------
+print("------- SVM SENTIMENT ANALYSIS RESULTS -------")
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+print(classification_report(y_test, y_pred))

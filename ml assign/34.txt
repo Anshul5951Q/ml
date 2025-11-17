@@ -1,0 +1,82 @@
+"""
+Home Price Prediction Model
+Dataset: home_price.csv
+Target: price
+Features: size, rooms, location, floor, heating_type, etc.
+"""
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import r2_score, mean_squared_error
+
+# ---------------------------------------------------------
+# Load dataset
+# ---------------------------------------------------------
+df = pd.read_csv("home_price.csv")
+
+# Clean string fields
+for col in df.select_dtypes(include="object"):
+    df[col] = df[col].str.strip()
+
+# ---------------------------------------------------------
+# Define features and target
+# ---------------------------------------------------------
+TARGET = "price"
+y = df[TARGET]
+X = df.drop(columns=[TARGET])
+
+# Identify categorical and numeric columns
+categorical_features = X.select_dtypes(include=["object", "category"]).columns.tolist()
+numeric_features = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
+
+# ---------------------------------------------------------
+# Preprocessing Pipeline
+# ---------------------------------------------------------
+preprocess = ColumnTransformer(
+    transformers=[
+        ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features),
+    ],
+    remainder="passthrough"  # Keep numeric features
+)
+
+# ---------------------------------------------------------
+# Regression Model
+# ---------------------------------------------------------
+model = Pipeline(steps=[
+    ("preprocess", preprocess),
+    ("regressor", LinearRegression())
+])
+
+# ---------------------------------------------------------
+# Train-test split
+# ---------------------------------------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# ---------------------------------------------------------
+# Train model
+# ---------------------------------------------------------
+model.fit(X_train, y_train)
+
+# ---------------------------------------------------------
+# Predict
+# ---------------------------------------------------------
+y_pred = model.predict(X_test)
+
+# ---------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------
+print("R² Score:", r2_score(y_test, y_pred))
+print("MSE:", mean_squared_error(y_test, y_pred))
+
+# Output actual vs predicted prices
+print("\nActual vs Predicted:")
+print(pd.DataFrame({"Actual Price": y_test, "Predicted Price": y_pred}))

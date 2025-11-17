@@ -1,0 +1,66 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# -----------------------------
+# 1. Load Dataset
+# -----------------------------
+df = pd.read_csv("forest.csv")   # change file name if required
+print(df.head())
+
+# -----------------------------
+# 2. Encode Categorical Features
+# -----------------------------
+le = LabelEncoder()
+df["month"] = le.fit_transform(df["month"])
+df["day"] = le.fit_transform(df["day"])
+
+# -----------------------------
+# 3. Create Fire Severity Class (Small / Large)
+# -----------------------------
+threshold = 5  # 5 hectares threshold
+df["Size"] = df["area"].apply(lambda x: "small" if x < threshold else "large")
+
+# Encode target: small=0, large=1
+df["Size"] = le.fit_transform(df["Size"])
+
+# -----------------------------
+# 4. Features & Target
+# -----------------------------
+X = df.drop(["area", "Size"], axis=1)
+y = df["Size"]
+
+# -----------------------------
+# 5. Train-Test Split
+# -----------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# -----------------------------
+# 6. Feature Scaling
+# -----------------------------
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# -----------------------------
+# 7. KNN Classifier
+# -----------------------------
+knn = KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_train_scaled, y_train)
+
+# -----------------------------
+# 8. Predictions
+# -----------------------------
+y_pred = knn.predict(X_test_scaled)
+
+# -----------------------------
+# 9. Evaluation
+# -----------------------------
+print("----- KNN CLASSIFIER RESULTS -----")
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+print(classification_report(y_test, y_pred))

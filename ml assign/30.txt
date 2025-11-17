@@ -1,0 +1,78 @@
+# irrigation_machine_visualization.py
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load dataset
+df = pd.read_csv("irrigation_machine.csv")
+
+# Set plot style
+sns.set(style="whitegrid", palette="Set2")
+
+# ------------------------------------------------------------
+# 1. Water Usage Comparison (Bar Chart)
+# ------------------------------------------------------------
+plt.figure(figsize=(10,5))
+sns.barplot(data=df, x="machine_type", y="water_usage", estimator="mean", ci=None)
+plt.title("Average Water Usage by Irrigation Machine Type")
+plt.xlabel("Machine Type")
+plt.ylabel("Water Usage (Liters/Hour)")
+plt.xticks(rotation=30)
+plt.show()
+
+# ------------------------------------------------------------
+# 2. Coverage Area Comparison
+# ------------------------------------------------------------
+plt.figure(figsize=(10,5))
+sns.barplot(data=df, x="machine_type", y="coverage_area", estimator="mean", ci=None)
+plt.title("Average Coverage Area by Machine Type")
+plt.xlabel("Machine Type")
+plt.ylabel("Coverage Area (Sq. Meters)")
+plt.xticks(rotation=30)
+plt.show()
+
+# ------------------------------------------------------------
+# 3. Operational Efficiency Box Plot
+# ------------------------------------------------------------
+plt.figure(figsize=(10,5))
+sns.boxplot(data=df, x="machine_type", y="operational_efficiency")
+plt.title("Operational Efficiency Distribution by Machine Type")
+plt.xlabel("Machine Type")
+plt.ylabel("Efficiency (%)")
+plt.xticks(rotation=30)
+plt.show()
+
+# ------------------------------------------------------------
+# 4. Scatter Plot: Water Usage vs Coverage Area
+# ------------------------------------------------------------
+plt.figure(figsize=(8,6))
+sns.scatterplot(data=df, x="water_usage", y="coverage_area", hue="machine_type", s=80)
+plt.title("Water Usage vs Coverage Area")
+plt.xlabel("Water Usage (Liters/Hour)")
+plt.ylabel("Coverage Area (Sq. Meters)")
+plt.show()
+
+# ------------------------------------------------------------
+# 5. Heatmap of Correlations
+# ------------------------------------------------------------
+plt.figure(figsize=(10,6))
+corr = df.corr(numeric_only=True)
+sns.heatmap(corr, annot=True, cmap="coolwarm")
+plt.title("Correlation Heatmap of Irrigation Machine Metrics")
+plt.show()
+
+# ------------------------------------------------------------
+# 6. Time Series Trend (Optional: if date column exists)
+# ------------------------------------------------------------
+if "date" in df.columns:
+    df["date"] = pd.to_datetime(df["date"])
+    daily_usage = df.groupby("date")["water_usage"].mean()
+
+    plt.figure(figsize=(12,5))
+    plt.plot(daily_usage.index, daily_usage.values, marker="o")
+    plt.title("Daily Average Water Usage Trend")
+    plt.xlabel("Date")
+    plt.ylabel("Water Usage (Liters)")
+    plt.grid(True)
+    plt.show()

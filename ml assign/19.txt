@@ -1,0 +1,72 @@
+# KNN for diabetes (diabetes_pima) - ready to run
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score, StratifiedKFold
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, roc_auc_score, roc_curve
+import joblib
+
+# 1. Load dataset (assumes 'Outcome' column: 1 diabetic, 0 non-diabetic)
+df = pd.read_csv("diabetes.csv")
+print(df.shape)
+print(df.head())
+
+# 2. Clean / replace impossible zeros for some columns
+cols_replace_zero = ["Glucose", "BloodPressure", "SkinThickness", "Insulin", "BMI"]
+for col in cols_replace_zero:
+    if col in df.columns:
+        med = df.loc[df[col] > 0, col].median()    # median of non-zero values
+        df[col] = df[col].replace(0, med)
+
+# 3. Features & target
+X = df.drop("Outcome", axis=1)
+y = df["Outcome"]
+
+# 4. Train-test split (stratified)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# 5. Scaling
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# 6. GridSearchCV to find best k & weights
+param_grid = {
+    "n_neighbors": list(range(1, 26, 2)),    # odd k values 1..25
+    "weights": ["uniform", "distance"],
+    "p": [1, 2]   # 1 -> Manhattan, 2 -> Euclidean (minkowski)
+}
+
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+knn = KNeighborsClassifier()
+gs = GridSearchCV(knn, param_grid, cv=cv, scoring="recall", n_jobs=-1)  # prioritize recall
+gs.fit(X_train_scaled, y_train)
+
+print("Best params:", gs.best_params_)
+print("Best CV recall:", gs.best_score_)
+
+# 7. Evaluate on test set
+best_knn = gs.best_estimator_
+y_pred = best_knn.predict(X_test_scaled)
+y_proba = best_knn.predict_proba(X_test_scaled)[:, 1] if hasattr(best_knn, "predict_proba") else None
+
+print("Test Accuracy:", accuracy_score(y_test, y_pred))
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
+print("Classification Report:\n", classification_report(y_test, y_pred))
+
+if y_proba is not None:
+    print("ROC AUC:", roc_auc_score(y_test, y_proba))
+
+# 8. Optional: cross-validated accuracy/recall on whole training set
+acc_scores = cross_val_score(best_knn, X_train_scaled, y_train, cv=cv, scoring="accuracy", n_jobs=-1)
+recall_scores = cross_val_score(best_knn, X_train_scaled, y_train, cv=cv, scoring="recall", n_jobs=-1)
+print("CV accuracy mean:", acc_scores.mean(), "std:", acc_scores.std())
+print("CV recall mean:", recall_scores.mean(), "std:", recall_scores.std())
+
+# 9. Save scaler + model
+joblib.dump(scaler, "scaler_diabetes_knn.joblib")
+joblib.dump(best_knn, "knn_diabetes_model.joblib")
+print("Saved scaler_diabetes_knn.joblib and knn_diabetes_model.joblib")

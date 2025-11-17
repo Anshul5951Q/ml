@@ -1,0 +1,61 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# -----------------------------
+# 1. Load Dataset
+# -----------------------------
+df = pd.read_csv("online_shoppers_intention.csv")
+print(df.head())
+
+# -----------------------------
+# 2. Encode Categorical Columns
+# -----------------------------
+le = LabelEncoder()
+
+categorical_cols = ["Month", "VisitorType", "Weekend", "Revenue"]
+
+for col in categorical_cols:
+    if col in df.columns:
+        df[col] = le.fit_transform(df[col])
+
+# -----------------------------
+# 3. Feature & Target Split
+# -----------------------------
+X = df.drop("Revenue", axis=1)
+y = df["Revenue"]
+
+# -----------------------------
+# 4. Train–Test Split
+# -----------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# -----------------------------
+# 5. Feature Scaling
+# -----------------------------
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# -----------------------------
+# 6. KNN Classifier
+# -----------------------------
+knn = KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_train_scaled, y_train)
+
+# -----------------------------
+# 7. Predictions
+# -----------------------------
+y_pred = knn.predict(X_test_scaled)
+
+# -----------------------------
+# 8. Evaluation
+# -----------------------------
+print("----- KNN CLASSIFIER -----")
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+print(classification_report(y_test, y_pred))

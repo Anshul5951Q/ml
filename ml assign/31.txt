@@ -1,0 +1,77 @@
+"""
+Naive Bayes model to predict employee attrition
+Dataset: employee_attrition.csv
+Target column: Attrition (Yes/No)
+"""
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.naive_bayes import GaussianNB
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# ---------------------------------------------------------
+# Load dataset
+# ---------------------------------------------------------
+df = pd.read_csv("employee_attrition.csv")
+
+# Clean text fields
+for col in df.select_dtypes(include="object"):
+    df[col] = df[col].str.strip()
+
+# ---------------------------------------------------------
+# Target variable
+# ---------------------------------------------------------
+TARGET = "Attrition"
+y_raw = df[TARGET]
+X = df.drop(columns=[TARGET])
+
+# ---------------------------------------------------------
+# Encode target (Yes/No -> 1/0)
+# ---------------------------------------------------------
+le = LabelEncoder()
+y = le.fit_transform(y_raw)   # e.g., Yes=1, No=0
+
+# ---------------------------------------------------------
+# Select numeric columns only for Naive Bayes
+# ---------------------------------------------------------
+numeric_cols = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
+X_numeric = X[numeric_cols]
+
+# ---------------------------------------------------------
+# Model pipeline: scale + Gaussian NB
+# ---------------------------------------------------------
+model = Pipeline([
+    ("scaler", StandardScaler()),
+    ("nb", GaussianNB())
+])
+
+# ---------------------------------------------------------
+# Train-test split
+# ---------------------------------------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X_numeric, y, test_size=0.2, stratify=y, random_state=42
+)
+
+# ---------------------------------------------------------
+# Train model
+# ---------------------------------------------------------
+model.fit(X_train, y_train)
+
+# ---------------------------------------------------------
+# Prediction
+# ---------------------------------------------------------
+y_pred = model.predict(X_test)
+
+# ---------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(
+    y_test, y_pred, target_names=le.classes_
+))

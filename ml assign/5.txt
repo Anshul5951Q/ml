@@ -1,0 +1,54 @@
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+
+# -----------------------------
+# 1. Load Dataset
+# -----------------------------
+df = pd.read_csv("online_retail.csv")
+print(df.head())
+
+# -----------------------------
+# 2. Basic Preprocessing
+# -----------------------------
+# Example: keeping important behavioral features
+# Modify according to your dataset
+
+features = ["TotalPurchase", "Frequency", "Recency"]  # example features
+X = df[features]
+
+# -----------------------------
+# 3. Feature Scaling
+# -----------------------------
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# -----------------------------
+# 4. Elbow Method to Find Optimal K
+# -----------------------------
+wcss = []
+for k in range(1, 11):
+    kmeans = KMeans(n_clusters=k, random_state=42)
+    kmeans.fit(X_scaled)
+    wcss.append(kmeans.inertia_)
+
+plt.plot(range(1, 11), wcss)
+plt.xlabel("Number of Clusters (k)")
+plt.ylabel("WCSS")
+plt.title("Elbow Method")
+plt.show()
+
+# -----------------------------
+# 5. K-Means Clustering
+# -----------------------------
+kmeans = KMeans(n_clusters=4, random_state=42)   # choose the best k from elbow
+df["Cluster"] = kmeans.fit_predict(X_scaled)
+
+print(df.head())
+
+# -----------------------------
+# 6. Cluster Summary
+# -----------------------------
+cluster_summary = df.groupby("Cluster")[features].mean()
+print(cluster_summary)

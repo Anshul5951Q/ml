@@ -1,0 +1,76 @@
+"""
+KNN Classifier for Adult Income Dataset
+Requires:
+    pip install pandas numpy scikit-learn
+Dataset:
+    adult.csv (target column: income --> '>50K' or '<=50K')
+"""
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# --------------------------
+# Load Dataset
+# --------------------------
+df = pd.read_csv("adult.csv")
+
+# Target column
+TARGET = "income"
+
+# --------------------------
+# Feature Selection
+# --------------------------
+X = df.drop(columns=[TARGET])
+y = df[TARGET]
+
+# Identify numeric & categorical features
+numeric_features = ["age", "hours_per_week"]
+categorical_features = [col for col in X.columns if col not in numeric_features]
+
+# --------------------------
+# Encoding & Scaling Pipeline
+# --------------------------
+preprocessor = ColumnTransformer(
+    transformers=[
+        ("num", StandardScaler(), numeric_features),
+        ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features),
+    ]
+)
+
+# --------------------------
+# Build KNN Classifier Pipeline
+# --------------------------
+knn_pipeline = Pipeline(steps=[
+    ("preprocess", preprocessor),
+    ("classifier", KNeighborsClassifier(n_neighbors=5))
+])
+
+# --------------------------
+# Train-test split
+# --------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# --------------------------
+# Train Model
+# --------------------------
+knn_pipeline.fit(X_train, y_train)
+
+# --------------------------
+# Predictions
+# --------------------------
+y_pred = knn_pipeline.predict(X_test)
+
+# --------------------------
+# Evaluation
+# --------------------------
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))

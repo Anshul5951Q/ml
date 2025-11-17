@@ -1,0 +1,94 @@
+"""
+Regression model to predict startup valuation
+Dataset: Startups.csv
+Target column: valuation
+Features: industry, country, valuation_date
+"""
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.linear_model import LinearRegression
+
+# --------------------------------------------------------
+# Load dataset
+# --------------------------------------------------------
+df = pd.read_csv("Startups.csv")
+
+# Strip whitespace
+for col in df.select_dtypes(include="object"):
+    df[col] = df[col].str.strip()
+
+# --------------------------------------------------------
+# Convert valuation_date to numerical features
+# --------------------------------------------------------
+df["valuation_date"] = pd.to_datetime(df["valuation_date"], errors="coerce")
+
+df["year"] = df["valuation_date"].dt.year
+df["month"] = df["valuation_date"].dt.month
+df["day"] = df["valuation_date"].dt.day
+
+# Drop original date
+df = df.drop(columns=["valuation_date"])
+
+# --------------------------------------------------------
+# Features & Target
+# --------------------------------------------------------
+TARGET = "valuation"
+y = df[TARGET]
+X = df.drop(columns=[TARGET])
+
+# Categorical & numeric features
+categorical_features = ["industry", "country"]
+numeric_features = ["year", "month", "day"]
+
+# --------------------------------------------------------
+# Preprocessing
+# --------------------------------------------------------
+preprocess = ColumnTransformer(
+    transformers=[
+        ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features),
+    ],
+    remainder="passthrough"   # keep numeric columns
+)
+
+# --------------------------------------------------------
+# Regression Pipeline
+# --------------------------------------------------------
+model = Pipeline(steps=[
+    ("preprocess", preprocess),
+    ("regressor", LinearRegression())
+])
+
+# --------------------------------------------------------
+# Train-test split
+# --------------------------------------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# --------------------------------------------------------
+# Train model
+# --------------------------------------------------------
+model.fit(X_train, y_train)
+
+# --------------------------------------------------------
+# Prediction
+# --------------------------------------------------------
+y_pred = model.predict(X_test)
+
+# --------------------------------------------------------
+# Evaluation
+# --------------------------------------------------------
+print("R² Score:", r2_score(y_test, y_pred))
+print("MSE:", mean_squared_error(y_test, y_pred))
+
+# Show actual vs predicted
+print("\nActual vs Predicted:")
+print(pd.DataFrame({"Actual": y_test, "Predicted": y_pred}))

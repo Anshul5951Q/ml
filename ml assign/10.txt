@@ -1,0 +1,88 @@
+# housing_clustering.py
+import pandas as pd
+import numpy as np
+
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import matplotlib.pyplot as plt
+
+# 1. Load dataset
+df = pd.read_csv("housing.csv")   # change filename as needed
+print(df.shape)
+print(df.head())
+
+# 2. Select / create features (adjust to your dataset)
+# Example columns: ['area_sqft', 'bedrooms', 'bathrooms', 'furnishing_status',
+#                   'age', 'has_parking', 'has_balcony', 'location']
+# We drop direct target columns if present (like 'furnishing_status') for unsupervised clustering,
+# but keep it for later evaluation if you want to compare clusters with true furnishing labels.
+labels = None
+if 'furnishing_status' in df.columns:
+    labels = df['furnishing_status']   # keep for interpretation but don't use for training
+    df = df.drop(columns=['furnishing_status'])
+
+# choose features you want to cluster on (or use all except ids)
+feature_cols = [c for c in df.columns if c.lower() not in ('id','listing_id')]
+X = df[feature_cols].copy()
+
+# 3. Identify column types
+num_cols = X.select_dtypes(include=['int64','float64']).columns.tolist()
+cat_cols = X.select_dtypes(include=['object','category','bool']).columns.tolist()
+
+# 4. Preprocessing: OneHot for categorical, StandardScaler for numeric
+ct = ColumnTransformer([
+    ('num', StandardScaler(), num_cols),
+    ('cat', OneHotEncoder(handle_unknown='ignore', sparse=False), cat_cols)
+], remainder='drop')
+
+X_pre = ct.fit_transform(X)
+
+# 5. Elbow method + silhouette to choose k
+wcss = []
+sil_scores = []
+K = range(2, 11)
+for k in K:
+    km = KMeans(n_clusters=k, random_state=42, n_init=10)
+    preds = km.fit_predict(X_pre)
+    wcss.append(km.inertia_)
+    sil_scores.append(silhouette_score(X_pre, preds))
+
+# Plot elbow & silhouette
+plt.figure(figsize=(10,4))
+plt.subplot(1,2,1)
+plt.plot(K, wcss, '-o')
+plt.xlabel('k'); plt.ylabel('WCSS (inertia)'); plt.title('Elbow method')
+
+plt.subplot(1,2,2)
+plt.plot(K, sil_scores, '-o')
+plt.xlabel('k'); plt.ylabel('Silhouette score'); plt.title('Silhouette')
+plt.tight_layout()
+plt.show()
+
+# 6. Fit final KMeans (pick best k from plots, here example k=3)
+best_k = 3
+km = KMeans(n_clusters=best_k, random_state=42, n_init=20)
+clusters = km.fit_predict(X_pre)
+
+# attach cluster labels back to original dataframe
+result = df.copy()
+result['cluster'] = clusters
+if labels is not None:
+    result['true_furnishing'] = labels
+
+# 7. Cluster summary (means for numeric and top categories)
+# numeric summary
+num_summary = result.groupby('cluster')[num_cols].mean().round(3)
+print("Numeric cluster centers (scaled back not done):")
+print(num_summary)
+
+# categorical top values
+for col in cat_cols:
+    print(f"\nTop categories in {col} per cluster:")
+    print(result.groupby('cluster')[col].agg(lambda s: s.value_counts().index[0]))
+
+# 8. Save results
+result.to_csv("housing_clusters.csv", index=False)
+print("Saved housing_clusters.csv — inspect clusters and compare with furnishing labels if available.")

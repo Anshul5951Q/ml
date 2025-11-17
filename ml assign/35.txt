@@ -1,0 +1,81 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from scipy.sparse import hstack
+
+# ---------------------------------------------------------
+# 1. Load Dataset
+# ---------------------------------------------------------
+df = pd.read_csv("laptops_dataset.csv")
+print(df.head())
+
+# ---------------------------------------------------------
+# 2. Basic Preprocessing
+# ---------------------------------------------------------
+df['review_text'] = df['review_text'].fillna("")
+df['review_title'] = df['review_title'].fillna("")
+df['product_name'] = df['product_name'].fillna("Unknown")
+
+# Target column (1 = positive, 0 = negative)
+y = df['sentiment']     # rename if different
+
+# ---------------------------------------------------------
+# 3. Combine Text Fields
+# ---------------------------------------------------------
+df['combined_text'] = (
+    df['review_title'] + " " +
+    df['review_text'] + " " +
+    df['product_name']
+)
+
+# ---------------------------------------------------------
+# 4. TF-IDF Text Vectorization
+# ---------------------------------------------------------
+tfidf = TfidfVectorizer(
+    stop_words='english',
+    max_features=7000
+)
+
+X_text = tfidf.fit_transform(df['combined_text'])
+
+# ---------------------------------------------------------
+# 5. Numeric Features (e.g., star rating)
+# ---------------------------------------------------------
+numeric_features = df[['star_rating']]
+
+scaler = StandardScaler()
+X_numeric = scaler.fit_transform(numeric_features)
+
+# ---------------------------------------------------------
+# 6. Combine Text + Numeric Features
+# ---------------------------------------------------------
+X_final = hstack([X_text, X_numeric])
+
+# ---------------------------------------------------------
+# 7. Train–Test Split
+# ---------------------------------------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X_final, y, test_size=0.2, random_state=42
+)
+
+# ---------------------------------------------------------
+# 8. SVM Classifier (RBF Kernel)
+# ---------------------------------------------------------
+svm = SVC(kernel='rbf', random_state=42)
+svm.fit(X_train, y_train)
+
+# ---------------------------------------------------------
+# 9. Predictions
+# ---------------------------------------------------------
+y_pred = svm.predict(X_test)
+
+# ---------------------------------------------------------
+# 10. Evaluation
+# ---------------------------------------------------------
+print("----- SVM Sentiment Classification -----")
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+print(classification_report(y_test, y_pred))

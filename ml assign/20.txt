@@ -1,0 +1,238 @@
+"""
+crime_rate_model.py
+
+Requirements:
+  pip install numpy pandas scikit-learn joblib
+  Optional (for XGBoost): pip install xgboost
+
+Assumptions:
+  - Input CSV: 'CrimeDataset.csv'
+  - Target column: 'crime_rate' (continuous)
+  - All other columns are features (categorical or numeric).
+  - If you have known lists of categorical/numeric columns,
+    you can set NUMERIC_FEATURES and CATEGORICAL_FEATURES manually.
+"""
+
+import sys
+import os
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from sklearn.model_selection import train_test_split, RandomizedSearchCV, cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.linear_model import Ridge
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import joblib
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# ---------------------------
+# Config
+# ---------------------------
+CSV_PATH = "CrimeDataset.csv"
+TARGET_COL = "crime_rate"
+RANDOM_STATE = 42
+TEST_SIZE = 0.2
+MODEL_OUTPUT = "crime_rate_model.joblib"
+
+# ---------------------------
+# Load data
+# ---------------------------
+if not Path(CSV_PATH).exists():
+    sys.exit(f"Error: dataset file '{CSV_PATH}' not found in working directory.")
+
+df = pd.read_csv(CSV_PATH)
+if TARGET_COL not in df.columns:
+    sys.exit(f"Error: target column '{TARGET_COL}' not found in dataset.")
+
+# Basic cleaning: drop fully empty columns
+df = df.dropna(axis=1, how="all")
+
+# ---------------------------
+# Identify feature types (automatic fallback)
+# ---------------------------
+# Prefer user to set these if they know exact columns; otherwise infer:
+NUMERIC_FEATURES = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
+if TARGET_COL in NUMERIC_FEATURES:
+    NUMERIC_FEATURES.remove(TARGET_COL)
+CATEGORICAL_FEATURES = df.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+
+# If any numeric-like columns are encoded as object but likely numeric (e.g., "1", "2"), attempt conversion:
+for col in CATEGORICAL_FEATURES[:]:  # iterate over copy
+    # try coercing to numeric
+    coerced = pd.to_numeric(df[col], errors="coerce")
+    non_na_fraction = coerced.notna().mean()
+    if non_na_fraction > 0.9:  # most values convertible -> treat as numeric
+        df[col] = coerced
+        NUMERIC_FEATURES.append(col)
+        CATEGORICAL_FEATURES.remove(col)
+
+print(f"Numeric features ({len(NUMERIC_FEATURES)}): {NUMERIC_FEATURES}")
+print(f"Categorical features ({len(CATEGORICAL_FEATURES)}): {CATEGORICAL_FEATURES}")
+
+# ---------------------------
+# Split data
+# ---------------------------
+X = df.drop(columns=[TARGET_COL])
+y = df[TARGET_COL].values
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE
+)
+
+# ---------------------------
+# Preprocessing pipelines
+# ---------------------------
+numeric_transformer = Pipeline(steps=[
+    ("imputer", SimpleImputer(strategy="median")),
+    ("scaler", StandardScaler())
+])
+
+categorical_transformer = Pipeline(steps=[
+    ("imputer", SimpleImputer(strategy="most_frequent")),
+    ("onehot", OneHotEncoder(handle_unknown="ignore", sparse=False))
+])
+
+preprocessor = ColumnTransformer(transformers=[
+    ("num", numeric_transformer, NUMERIC_FEATURES),
+    ("cat", categorical_transformer, CATEGORICAL_FEATURES),
+], remainder="drop")  # drop any other columns not listed
+
+# ---------------------------
+# Baseline model (Ridge) in pipeline
+# ---------------------------
+baseline_pipeline = Pipeline(steps=[
+    ("preproc", preprocessor),
+    ("model", Ridge(random_state=RANDOM_STATE))
+])
+
+print("\nTraining baseline (Ridge) model...")
+baseline_pipeline.fit(X_train, y_train)
+y_pred_bl = baseline_pipeline.predict(X_test)
+print("Baseline eval:")
+print(" MAE:", mean_absolute_error(y_test, y_pred_bl))
+print(" MSE:", mean_squared_error(y_test, y_pred_bl))
+print(" RMSE:", mean_squared_error(y_test, y_pred_bl, squared=False))
+print(" R2:", r2_score(y_test, y_pred_bl))
+
+# ---------------------------
+# Stronger model: Random Forest with RandomizedSearchCV
+# ---------------------------
+rf_pipeline = Pipeline(steps=[
+    ("preproc", preprocessor),
+    ("model", RandomForestRegressor(random_state=RANDOM_STATE, n_jobs=-1))
+])
+
+param_distributions = {
+    "model__n_estimators": [100, 200, 400, 800],
+    "model__max_depth": [None, 6, 10, 20, 30],
+    "model__min_samples_split": [2, 5, 10],
+    "model__min_samples_leaf": [1, 2, 4],
+    "model__max_features": ["auto", "sqrt", 0.2, 0.5]
+}
+
+print("\nRunning RandomizedSearchCV for RandomForest (this may take some time)...")
+rs = RandomizedSearchCV(
+    rf_pipeline,
+    param_distributions=param_distributions,
+    n_iter=30,
+    scoring="neg_mean_squared_error",
+    cv=5,
+    random_state=RANDOM_STATE,
+    verbose=1,
+    n_jobs=-1
+)
+rs.fit(X_train, y_train)
+
+print("\nBest params found:")
+print(rs.best_params_)
+best_rf = rs.best_estimator_
+
+# Evaluate on test set
+y_pred_rf = best_rf.predict(X_test)
+mae = mean_absolute_error(y_test, y_pred_rf)
+mse = mean_squared_error(y_test, y_pred_rf)
+rmse = mean_squared_error(y_test, y_pred_rf, squared=False)
+r2 = r2_score(y_test, y_pred_rf)
+
+print("\nRandom Forest eval on test set:")
+print(f" MAE:  {mae:.4f}")
+print(f" MSE:  {mse:.4f}")
+print(f" RMSE: {rmse:.4f}")
+print(f" R2:   {r2:.4f}")
+
+# Optionally: cross-validated R2 on full training set
+cv_scores = cross_val_score(best_rf, X_train, y_train, cv=5, scoring="r2", n_jobs=-1)
+print("\nCross-validated R² (train):", np.round(cv_scores, 4))
+print(" Mean R²:", np.round(cv_scores.mean(), 4))
+
+# ---------------------------
+# Feature importance (after preprocessing)
+# ---------------------------
+# We can extract feature names after the ColumnTransformer + OneHotEncoder to map importances:
+def get_feature_names(column_transformer):
+    """Return feature names for all transformers."""
+    feature_names = []
+    for name, trans, cols in column_transformer.transformers_:
+        if name == "remainder":
+            continue
+        if hasattr(trans, "named_steps") and "onehot" in trans.named_steps:
+            # onehot present
+            ohe = trans.named_steps["onehot"]
+            # if columns is a list, use it
+            if hasattr(ohe, "get_feature_names_out"):
+                names = list(ohe.get_feature_names_out(cols))
+            else:
+                # fallback
+                names = [f"{col}_{i}" for col in cols for i in range(1)]
+            feature_names.extend(names)
+        else:
+            # numeric pipeline -> keep original column names
+            feature_names.extend(cols)
+    return feature_names
+
+try:
+    feature_names = get_feature_names(best_rf.named_steps["preproc"])
+    model_obj = best_rf.named_steps["model"]
+    if hasattr(model_obj, "feature_importances_"):
+        importances = model_obj.feature_importances_
+        # If lengths match, print top 10
+        if len(importances) == len(feature_names):
+            imp_df = pd.DataFrame({
+                "feature": feature_names,
+                "importance": importances
+            }).sort_values("importance", ascending=False).head(15)
+            print("\nTop feature importances (approx):")
+            print(imp_df.to_string(index=False))
+except Exception as e:
+    print("Could not compute feature importances automatically:", e)
+
+# ---------------------------
+# Save best model
+# ---------------------------
+joblib.dump(best_rf, MODEL_OUTPUT)
+print(f"\nSaved best model to: {MODEL_OUTPUT}")
+
+# ---------------------------
+# Quick predict function (example)
+# ---------------------------
+def predict_for_dict(model, input_dict):
+    """
+    input_dict: dict mapping column -> value for ALL required features (or at least those used)
+    returns predicted crime_rate
+    """
+    row = pd.DataFrame([input_dict])
+    return model.predict(row)[0]
+
+# Example usage (fill appropriate values for your features):
+# example_input = { "population_density": 1200, "unemployment_rate": 0.08, "median_income": 50000, "education_level": "high_school", ... }
+# print("Predicted crime rate:", predict_for_dict(best_rf, example_input))
+
+if __name__ == "__main__":
+    print("\nScript completed.")

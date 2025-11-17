@@ -1,0 +1,70 @@
+"""
+Predicting Startup Profit using Multiple Linear Regression
+Dataset: 50_Startups.csv
+Columns: R&D Spend, Administration, Marketing Spend, State, Profit
+"""
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.pipeline import Pipeline
+
+# ---------------------------------------
+# Load dataset
+# ---------------------------------------
+df = pd.read_csv("50_Startups.csv")
+
+# Features & Target
+X = df.drop("Profit", axis=1)
+y = df["Profit"]
+
+# Identify categorical and numeric features
+categorical_features = ["State"]
+numeric_features = ["R&D Spend", "Administration", "Marketing Spend"]
+
+# ---------------------------------------
+# Preprocessing: One-Hot Encoding for State
+# ---------------------------------------
+preprocess = ColumnTransformer(
+    transformers=[
+        ("cat", OneHotEncoder(drop="first"), categorical_features)
+    ],
+    remainder="passthrough"
+)
+
+# ---------------------------------------
+# Regression Model Pipeline
+# ---------------------------------------
+model = Pipeline(steps=[
+    ("preprocess", preprocess),
+    ("regressor", LinearRegression())
+])
+
+# ---------------------------------------
+# Train-test split
+# ---------------------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# ---------------------------------------
+# Train model
+# ---------------------------------------
+model.fit(X_train, y_train)
+
+# ---------------------------------------
+# Predict
+# ---------------------------------------
+y_pred = model.predict(X_test)
+
+# ---------------------------------------
+# Evaluation
+# ---------------------------------------
+print("R² Score:", r2_score(y_test, y_pred))
+print("MSE:", mean_squared_error(y_test, y_pred))
+print("\nActual vs Predicted:")
+comparison = pd.DataFrame({"Actual Profit": y_test, "Predicted Profit": y_pred})
+print(comparison)
